@@ -44,6 +44,5 @@ The API will be available at `http://localhost:8000`.
 streamlit run frontend/dashboard.py
 ```
 
-## Active Workspace Recommendation
-It is highly recommended to set the following directory as your active workspace:
-`C:\Users\shree\.gemini\antigravity\scratch\GWIFS`
+## Repository
+[https://github.com/shreekanth2405/weather-reporting-tool](https://github.com/shreekanth2405/weather-reporting-tool)

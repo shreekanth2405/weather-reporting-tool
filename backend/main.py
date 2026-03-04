@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select
 from typing import List, Optional
 import uvicorn
@@ -9,42 +9,37 @@ import sys
 # Ensure this directory is in the path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from db.database import engine, Base, AsyncSessionLocal, get_db
+from db.database import engine, Base, SessionLocal, get_db
 from db.models import City, WeatherHistory, WeatherForecast
 from data_engine.openweather_client import get_weather_client
 from data_engine.report_generator import generate_report
 from fastapi.responses import FileResponse
-import os
 
-app = FastAPI(title="GWIFS API", version="1.0.0")
+app = FastAPI(title="GWIFS API (Demo Mode)", version="1.0.0")
 
 @app.on_event("startup")
-async def startup():
-    # Attempt to create tables on startup for simplicity in this demo
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+def startup():
+    # Sync table creation
+    Base.metadata.create_all(bind=engine)
 
 @app.get("/")
-async def root():
-    return {"message": "Welcome to GWIFS API", "status": "online"}
+def root():
+    return {"message": "Welcome to GWIFS API (Compatibility Mode)", "status": "online"}
 
 @app.get("/weather/current/{city_name}")
-async def get_current_weather(city_name: str, db: AsyncSession = Depends(get_db)):
+def get_current_weather(city_name: str, db: Session = Depends(get_db)):
     client = get_weather_client()
     try:
-        # 1. Get coords
         coords = client.get_city_coords(city_name)
-        # 2. Get weather
         weather_data = client.get_current_weather(coords["lat"], coords["lon"])
         
-        # 3. Store in DB if city doesn't exist
-        result = await db.execute(select(City).where(City.name == coords["name"]))
-        city = result.scalars().first()
+        # Sync DB check
+        city = db.query(City).filter(City.name == coords["name"]).first()
         if not city:
             city = City(name=coords["name"], latitude=coords["lat"], longitude=coords["lon"])
             db.add(city)
-            await db.commit()
-            await db.refresh(city)
+            db.commit()
+            db.refresh(city)
 
         return {
             "city": coords["name"],
@@ -57,9 +52,7 @@ async def get_current_weather(city_name: str, db: AsyncSession = Depends(get_db)
         raise HTTPException(status_code=404, detail=str(e))
 
 @app.get("/weather/forecast/{city_name}")
-async def get_weather_forecast(city_name: str, db: AsyncSession = Depends(get_db)):
-    # This will later be powered by our Prophet/XGBoost models
-    # For now, placeholder with direct OpenWeather API forecast
+def get_weather_forecast(city_name: str, db: Session = Depends(get_db)):
     client = get_weather_client()
     try:
         coords = client.get_city_coords(city_name)
@@ -84,7 +77,7 @@ async def get_weather_forecast(city_name: str, db: AsyncSession = Depends(get_db
         raise HTTPException(status_code=404, detail=str(e))
 
 @app.get("/weather/report/{city_name}")
-async def get_weather_report(city_name: str, db: AsyncSession = Depends(get_db)):
+def get_weather_report(city_name: str, db: Session = Depends(get_db)):
     client = get_weather_client()
     try:
         coords = client.get_city_coords(city_name)
